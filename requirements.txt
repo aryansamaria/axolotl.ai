@@ -1,0 +1,11 @@
+flask==2.3.3
+python-dotenv==1.0.0
+openai==1.12.0
+llama-index-core==0.10.11
+llama-index-llms-openai==0.1.5
+llama-index-embeddings-openai==0.1.5
+pandas==2.1.1
+numpy==1.26.0
+scipy==1.11.3
+pygame==2.5.2
+gTTS==2.3.2

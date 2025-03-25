@@ -1,0 +1,16 @@
+# Environment and dependencies
+venv/
+wise/
+.env
+__pycache__/
+*.py[cod]
+
+# Storage and data files
+storage/
+audio/
+*.mp3
+*.wav
+*.log
+
+# API keys
+*.key
