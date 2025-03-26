@@ -8,6 +8,8 @@ from scipy.io.wavfile import write
 import pygame
 from gtts import gTTS
 from config import Config
+import threading
+import uuid
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -20,6 +22,10 @@ class SpeechProcessor:
         """Initialize the speech processor."""
         # Set OpenAI API key
         openai.api_key = Config.OPENAI_API_KEY
+        
+        # Add this dictionary to track active speech tasks
+        self.active_speech_tasks = {}
+        self.speech_lock = threading.Lock()
         
     def transcribe_audio_file(self, audio_file_path):
         """
@@ -110,29 +116,65 @@ class SpeechProcessor:
             logger.error(f"Error in text-to-speech: {e}")
             return None
     
-    def text_to_speech_data(self, text):
+    def text_to_speech_data(self, text, session_id=None):
         """
         Convert text to speech and return as base64-encoded data.
+        This version supports cancellation of in-progress speech synthesis.
         
         Args:
             text (str): Text to convert to speech
+            session_id (str, optional): Session ID for tracking
             
         Returns:
             str: Base64-encoded audio data
         """
         try:
+            # Generate a unique ID if not provided
+            if not session_id:
+                session_id = str(uuid.uuid4())
+                
+            # Track this task
+            with self.speech_lock:
+                self.active_speech_tasks[session_id] = {
+                    'cancelled': False,
+                    'text': text[:30] + '...' if len(text) > 30 else text
+                }
+            
             # Generate audio in memory
             audio_io = io.BytesIO()
             tts = gTTS(text=text, lang=Config.TTS_LANGUAGE)
+            
+            # Check if cancelled before writing to file
+            if self._is_task_cancelled(session_id):
+                logger.info(f"Speech synthesis cancelled for session {session_id}")
+                return None
+                
             tts.write_to_fp(audio_io)
             audio_io.seek(0)
             
+            # Check if cancelled before encoding
+            if self._is_task_cancelled(session_id):
+                logger.info(f"Speech synthesis cancelled for session {session_id}")
+                return None
+            
             # Convert to base64
             audio_base64 = base64.b64encode(audio_io.read()).decode('utf-8')
+            
+            # Remove task from tracking
+            with self.speech_lock:
+                if session_id in self.active_speech_tasks:
+                    del self.active_speech_tasks[session_id]
+                    
             return f"data:audio/mp3;base64,{audio_base64}"
             
         except Exception as e:
             logger.error(f"Error generating speech: {e}")
+            
+            # Clean up tracking
+            with self.speech_lock:
+                if session_id in self.active_speech_tasks:
+                    del self.active_speech_tasks[session_id]
+                    
             return None
     
     def play_audio(self, audio_path):
@@ -179,6 +221,48 @@ class SpeechProcessor:
         except Exception as e:
             logger.error(f"Error recording audio: {e}")
             return None
+
+    def _is_task_cancelled(self, session_id):
+        """
+        Check if a task has been cancelled.
+        
+        Args:
+            session_id (str): The session ID to check
+            
+        Returns:
+            bool: True if cancelled, False otherwise
+        """
+        with self.speech_lock:
+            if session_id in self.active_speech_tasks:
+                return self.active_speech_tasks[session_id]['cancelled']
+        return False
+    
+    def cancel_active_speech(self, session_id):
+        """
+        Cancel an active speech synthesis task.
+        
+        Args:
+            session_id (str): Session ID of the speech to cancel
+            
+        Returns:
+            bool: True if a task was found and marked for cancellation
+        """
+        with self.speech_lock:
+            if session_id in self.active_speech_tasks:
+                self.active_speech_tasks[session_id]['cancelled'] = True
+                logger.info(f"Speech task for session {session_id} marked for cancellation")
+                return True
+        return False
+        
+    def cleanup_tasks(self):
+        """
+        Remove completed or old tasks from tracking.
+        """
+        with self.speech_lock:
+            # Implementation would depend on how you track task completion
+            # This is a simple placeholder
+            self.active_speech_tasks = {}
+            logger.info("Cleaned up speech tasks")        
 
 # Create a singleton instance
 speech_processor = SpeechProcessor()

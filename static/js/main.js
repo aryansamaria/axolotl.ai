@@ -8,12 +8,29 @@ document.addEventListener('DOMContentLoaded', function() {
     const audioElement = document.getElementById('response-audio');
     const audioStatus = document.querySelector('#audio-status span');
     const serverStatus = document.querySelector('#server-status span');
+    
+    // Create stop button element (hidden by default)
+    const stopButton = document.createElement('button');
+    stopButton.id = 'stop-button';
+    stopButton.className = 'stop-button';
+    stopButton.innerHTML = '<i class="fas fa-stop"></i>';
+    stopButton.title = 'Stop speaking';
+    stopButton.style.display = 'none';
+    
+    // Add the stop button after the mic button
+    micButton.parentNode.insertBefore(stopButton, micButton.nextSibling);
 
     // MediaRecorder variables
     let mediaRecorder;
     let audioChunks = [];
     let isRecording = false;
     let stream;
+    
+    // Keep track of microphone stream to avoid requesting permission multiple times
+    let microphoneStream = null;
+    
+    // Flag for speech state
+    let isSpeaking = false;
 
     // Function to update recorder UI
     function updateRecorderUI(recording) {
@@ -29,14 +46,50 @@ document.addEventListener('DOMContentLoaded', function() {
             micButton.innerHTML = '<i class="fas fa-microphone"></i>';
         }
     }
+    
+    // Function to update speaking UI
+    function updateSpeakingUI(speaking) {
+        isSpeaking = speaking;
+        
+        if (speaking) {
+            // Show stop button when speaking
+            stopButton.style.display = 'block';
+            audioStatus.textContent = 'Playing response...';
+        } else {
+            // Hide stop button when not speaking
+            stopButton.style.display = 'none';
+            audioStatus.textContent = 'Ready';
+        }
+    }
+
+    // Function to get microphone access once
+    async function getMicrophoneAccess() {
+        if (microphoneStream) {
+            return microphoneStream;
+        }
+        
+        try {
+            // Request microphone permission
+            microphoneStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            return microphoneStream;
+        } catch (error) {
+            console.error('Error accessing microphone:', error);
+            audioStatus.textContent = 'Microphone access denied';
+            alert('Please allow microphone access to use voice input');
+            throw error;
+        }
+    }
 
     // Function to start recording
     async function startRecording() {
         try {
-            audioStatus.textContent = 'Requesting microphone access...';
+            // First, stop any ongoing speech
+            stopSpeaking();
             
-            // Request microphone permission
-            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            audioStatus.textContent = 'Preparing to record...';
+            
+            // Get microphone access (will use cached stream if available)
+            stream = await getMicrophoneAccess();
             
             // Create media recorder
             mediaRecorder = new MediaRecorder(stream);
@@ -58,8 +111,7 @@ document.addEventListener('DOMContentLoaded', function() {
             updateRecorderUI(true);
         } catch (error) {
             console.error('Error starting recording:', error);
-            audioStatus.textContent = 'Microphone access denied';
-            alert('Please allow microphone access to use voice input');
+            audioStatus.textContent = 'Error starting recording';
         }
     }
 
@@ -67,10 +119,36 @@ document.addEventListener('DOMContentLoaded', function() {
     function stopRecording() {
         if (mediaRecorder && mediaRecorder.state !== 'inactive') {
             mediaRecorder.stop();
-            stream.getTracks().forEach(track => track.stop());
+            // Don't stop the stream, keep it for future recordings
             audioStatus.textContent = 'Processing...';
             updateRecorderUI(false);
         }
+    }
+
+    // Function to stop speaking
+    function stopSpeaking() {
+        console.log("Stopping speech");
+        
+        // Get the existing audio element
+        const existingAudio = document.getElementById('response-audio');
+        if (existingAudio) {
+            // Remove source and pause
+            existingAudio.src = "";
+            existingAudio.pause();
+        }
+        
+        // Update UI
+        updateSpeakingUI(false);
+        
+        // Signal the server
+        fetch('/cancel_response', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        }).catch(error => {
+            console.error('Error canceling response:', error);
+        });
     }
 
     // Function to process recorded audio
@@ -120,51 +198,61 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Function to process text query
-    // Update the processQuery function in main.js to handle base64 audio
-
-// Function to process text query
-async function processQuery(text) {
-    try {
-        audioStatus.textContent = 'Getting response...';
-        serverStatus.textContent = 'Processing...';
-        
-        // Send query to backend
-        const response = await fetch('/process_query', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ query: text })
-        });
-        
-        if (!response.ok) {
-            throw new Error('Failed to process query');
+    async function processQuery(text) {
+        try {
+            audioStatus.textContent = 'Getting response...';
+            serverStatus.textContent = 'Processing...';
+            
+            // Send query to backend
+            const response = await fetch('/process_query', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ query: text })
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to process query');
+            }
+            
+            const data = await response.json();
+            
+            // Add bot message to chat
+            addMessageToChat('bot', data.text);
+            
+            // Get the existing audio element
+            const audioElement = document.getElementById('response-audio');
+            if (audioElement && data.audio_data) {
+                // Update UI to show stop button
+                updateSpeakingUI(true);
+                
+                // Set up the audio element
+                audioElement.src = data.audio_data;
+                
+                audioElement.oncanplaythrough = function() {
+                    audioElement.play();
+                };
+                
+                audioElement.onended = function() {
+                    updateSpeakingUI(false);
+                };
+                
+                audioElement.onerror = function() {
+                    updateSpeakingUI(false);
+                    audioStatus.textContent = 'Error playing audio';
+                };
+            }
+            
+            serverStatus.textContent = 'Connected';
+        } catch (error) {
+            console.error('Error processing query:', error);
+            serverStatus.textContent = 'Error';
+            updateSpeakingUI(false);
+            addMessageToChat('bot', 'Sorry, I encountered an error processing your request.');
         }
-        
-        const data = await response.json();
-        
-        // Add bot message to chat
-        addMessageToChat('bot', data.text);
-        
-        // Play audio response directly from base64 data
-        if (data.audio_data) {
-            audioElement.src = data.audio_data;
-            audioElement.oncanplaythrough = function() {
-                audioStatus.textContent = 'Playing response...';
-                audioElement.play();
-            };
-            audioElement.onended = function() {
-                audioStatus.textContent = 'Ready';
-            };
-        }
-        
-        serverStatus.textContent = 'Connected';
-    } catch (error) {
-        console.error('Error processing query:', error);
-        serverStatus.textContent = 'Error';
-        addMessageToChat('bot', 'Sorry, I encountered an error processing your request.');
     }
-}
+
     // Function to add message to chat
     function addMessageToChat(sender, text) {
         const messageDiv = document.createElement('div');
@@ -186,11 +274,17 @@ async function processQuery(text) {
 
     // Mic button click handler - toggle recording
     micButton.addEventListener('click', function() {
+        // If already recording, stop recording
         if (isRecording) {
             stopRecording();
         } else {
             startRecording();
         }
+    });
+    
+    // Stop button click handler
+    stopButton.addEventListener('click', function() {
+        stopSpeaking();
     });
 
     // Send button click handler
@@ -209,6 +303,9 @@ async function processQuery(text) {
     function sendTextInput() {
         const text = textInput.value.trim();
         if (text) {
+            // Stop any ongoing speech
+            stopSpeaking();
+            
             addMessageToChat('user', text);
             processQuery(text);
             textInput.value = '';
@@ -232,4 +329,10 @@ async function processQuery(text) {
     // Initialize
     checkServerHealth();
     audioStatus.textContent = 'Ready';
+    
+    // Request microphone access at page load to prepare for later use
+    getMicrophoneAccess().catch(err => {
+        // Don't show the alert here, as we'll handle it when the user clicks the mic button
+        console.warn('Initial microphone access request failed:', err);
+    });
 });

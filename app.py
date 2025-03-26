@@ -7,6 +7,9 @@ from modules.speech_processor import speech_processor
 from modules.query_processor import query_processor
 from modules.data_manager import data_manager
 from utils.helpers import save_conversation, format_error_response, sanitize_input, get_timestamp
+import uuid
+from flask import session
+
 
 # Configure logging
 logging.basicConfig(
@@ -26,14 +29,19 @@ Config.setup_directories()
 with app.app_context():
     initialize_modules()
 
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24))
+
+
 @app.route('/')
 def index():
-    """Render the main application page."""
     return render_template('index.html')
+
+@app.route('/assistant')
+def assistant():
+    return render_template('assistant.html')
 
 @app.route('/about')
 def about():
-    """Render the about page."""
     return render_template('about.html')
 
 @app.route('/transcribe', methods=['POST'])
@@ -63,10 +71,38 @@ def transcribe_audio():
         logger.error(f"Error in transcription: {str(e)}")
         return jsonify(format_error_response(str(e))), 500
 
+@app.route('/cancel_response', methods=['POST'])
+def cancel_response():
+    """
+    Cancel any ongoing response generation or speech synthesis.
+    """
+    try:
+        logger.info("Response cancelled by user")
+        
+        # Get session ID for the current user
+        session_id = session.get('session_id')
+        if not session_id:
+            session_id = str(uuid.uuid4())
+            session['session_id'] = session_id
+        
+        # Cancel any active query
+        speech_processor.cancel_active_speech(session_id)
+        
+        return jsonify({
+            "success": True,
+            "message": "Response cancellation processed"
+        })
+    
+    except Exception as e:
+        logger.error(f"Error canceling response: {str(e)}")
+        return jsonify(format_error_response(str(e))), 500     
+
+
 @app.route('/process_query', methods=['POST'])
 def process_query():
     """
     Process a text query and generate a response with audio.
+    Updated to support interruption and session tracking.
     """
     try:
         # Get query text from request
@@ -74,23 +110,34 @@ def process_query():
         if not query:
             return jsonify(format_error_response("No query received")), 400
         
+        # Get or create a session ID
+        session_id = session.get('session_id')
+        if not session_id:
+            session_id = str(uuid.uuid4())
+            session['session_id'] = session_id
+        
         sanitized_query = sanitize_input(query)
         
+        # Process the query
         response = query_processor.process_query(sanitized_query)
         
-        audio_data = speech_processor.text_to_speech_data(response)
+        # Generate speech with session ID for tracking
+        audio_data = speech_processor.text_to_speech_data(response, session_id)
         
+        # Save conversation
         save_conversation(sanitized_query, response)
         
         return jsonify({
             "success": True,
             "text": response,
-            "audio_data": audio_data
+            "audio_data": audio_data,
+            "session_id": session_id
         })
     
     except Exception as e:
         logger.error(f"Error processing query: {str(e)}")
         return jsonify(format_error_response(str(e))), 500
+
 
 @app.route('/categories', methods=['GET'])
 def get_categories():
