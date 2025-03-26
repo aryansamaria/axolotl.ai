@@ -38,7 +38,6 @@ class SpeechProcessor:
             str: Transcribed text
         """
         try:
-            # Try newer OpenAI client format (v1.0.0+)
             try:
                 client = openai.OpenAI(api_key=Config.OPENAI_API_KEY)
                 with open(audio_file_path, "rb") as audio_file:
@@ -48,7 +47,6 @@ class SpeechProcessor:
                     )
                 transcription_text = transcription.text
             except AttributeError:
-                # Fall back to older format (pre-v1.0.0)
                 with open(audio_file_path, "rb") as audio_file:
                     transcription = openai.Audio.transcribe(
                         Config.STT_MODEL,
@@ -121,10 +119,9 @@ class SpeechProcessor:
         Convert text to speech and return as base64-encoded data.
         This version supports cancellation of in-progress speech synthesis.
         
-        Args:
-            text (str): Text to convert to speech
+        Args: text (str): Text to convert to speech
             session_id (str, optional): Session ID for tracking
-            
+    
         Returns:
             str: Base64-encoded audio data
         """

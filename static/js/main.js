@@ -26,9 +26,6 @@ document.addEventListener('DOMContentLoaded', function() {
     let isRecording = false;
     let stream;
     
-    // Keep track of microphone stream to avoid requesting permission multiple times
-    let microphoneStream = null;
-    
     // Flag for speech state
     let isSpeaking = false;
 
@@ -62,16 +59,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Function to get microphone access once
+    // Function to get microphone access
     async function getMicrophoneAccess() {
-        if (microphoneStream) {
-            return microphoneStream;
-        }
-        
         try {
-            // Request microphone permission
-            microphoneStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            return microphoneStream;
+            // Request microphone permission each time
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            return stream;
         } catch (error) {
             console.error('Error accessing microphone:', error);
             audioStatus.textContent = 'Microphone access denied';
@@ -88,7 +81,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             audioStatus.textContent = 'Preparing to record...';
             
-            // Get microphone access (will use cached stream if available)
+            // Get fresh microphone access each time
             stream = await getMicrophoneAccess();
             
             // Create media recorder
@@ -119,7 +112,12 @@ document.addEventListener('DOMContentLoaded', function() {
     function stopRecording() {
         if (mediaRecorder && mediaRecorder.state !== 'inactive') {
             mediaRecorder.stop();
-            // Don't stop the stream, keep it for future recordings
+            
+            // IMPORTANT: Release microphone by stopping all tracks
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            
             audioStatus.textContent = 'Processing...';
             updateRecorderUI(false);
         }
@@ -329,10 +327,4 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize
     checkServerHealth();
     audioStatus.textContent = 'Ready';
-    
-    // Request microphone access at page load to prepare for later use
-    getMicrophoneAccess().catch(err => {
-        // Don't show the alert here, as we'll handle it when the user clicks the mic button
-        console.warn('Initial microphone access request failed:', err);
-    });
 });
