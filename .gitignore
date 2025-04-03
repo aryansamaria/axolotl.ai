@@ -4,9 +4,7 @@ wise/
 .env
 __pycache__/
 *.py[cod]
-models/
 depo/
-routes/
 
 # Storage and data files
 storage/
@@ -14,8 +12,6 @@ audio/
 *.mp3
 *.wav
 *.log
-faqs.csv
-wise_help_cotntent.csv
 
 # API keys
 *.key
