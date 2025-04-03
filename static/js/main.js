@@ -60,68 +60,76 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Function to get microphone access
-    async function getMicrophoneAccess() {
-        try {
-            // Request microphone permission each time
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            return stream;
-        } catch (error) {
-            console.error('Error accessing microphone:', error);
-            audioStatus.textContent = 'Microphone access denied';
-            alert('Please allow microphone access to use voice input');
-            throw error;
-        }
-    }
+    // Add this as a global variable at the top of your script
+let persistentStream = null;
 
-    // Function to start recording
-    async function startRecording() {
-        try {
-            // First, stop any ongoing speech
-            stopSpeaking();
-            
-            audioStatus.textContent = 'Preparing to record...';
-            
-            // Get fresh microphone access each time
-            stream = await getMicrophoneAccess();
-            
-            // Create media recorder
-            mediaRecorder = new MediaRecorder(stream);
-            audioChunks = [];
-            
-            // Add event listeners for audio data
-            mediaRecorder.addEventListener('dataavailable', event => {
-                audioChunks.push(event.data);
-            });
-            
-            // When recording stops, process audio
-            mediaRecorder.addEventListener('stop', processAudio);
-            
-            // Start recording
-            mediaRecorder.start();
-            audioStatus.textContent = 'Recording...';
-            
-            // Update UI
-            updateRecorderUI(true);
-        } catch (error) {
-            console.error('Error starting recording:', error);
-            audioStatus.textContent = 'Error starting recording';
-        }
+// Modify your getMicrophoneAccess function or create one if it doesn't exist
+async function getMicrophoneAccess() {
+    if (persistentStream) {
+        // Return the existing stream if we already have one
+        return persistentStream;
     }
-
-    // Function to stop recording
-    function stopRecording() {
-        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-            mediaRecorder.stop();
-            
-            // IMPORTANT: Release microphone by stopping all tracks
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
+    
+    try {
+        // Request microphone access with persistence
+        persistentStream = await navigator.mediaDevices.getUserMedia({ 
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
             }
-            
-            audioStatus.textContent = 'Processing...';
-            updateRecorderUI(false);
-        }
+        });
+        return persistentStream;
+    } catch (error) {
+        console.error('Error accessing microphone:', error);
+        throw error;
     }
+}
+
+// Then update your startRecording function
+async function startRecording() {
+    try {
+        // First, stop any ongoing speech
+        stopSpeaking();
+        audioStatus.textContent = 'Preparing to record...';
+        
+        // Get microphone access (will use cached stream if available)
+        stream = await getMicrophoneAccess();
+        
+        // Create media recorder
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+        
+        // Add event listeners for audio data
+        mediaRecorder.addEventListener('dataavailable', event => {
+            audioChunks.push(event.data);
+        });
+        
+        // When recording stops, process audio
+        mediaRecorder.addEventListener('stop', processAudio);
+        
+        // Start recording
+        mediaRecorder.start();
+        audioStatus.textContent = 'Recording...';
+        
+        // Update UI
+        updateRecorderUI(true);
+    } catch (error) {
+        console.error('Error starting recording:', error);
+        audioStatus.textContent = 'Error starting recording';
+    }
+}
+
+// Also update your stopRecording function to not close the stream
+function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+        // Don't close the stream anymore
+        // stream.getTracks().forEach(track => track.stop());
+        audioStatus.textContent = 'Processing...';
+        updateRecorderUI(false);
+    }
+}
 
     // Function to stop speaking
     function stopSpeaking() {

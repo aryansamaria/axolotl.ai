@@ -1,15 +1,16 @@
 import os
 import logging
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect, url_for
 from config import Config
 from modules import initialize_modules
 from modules.speech_processor import speech_processor
 from modules.query_processor import query_processor
 from modules.data_manager import data_manager
+from models.investment_model import investment_model
 from utils.helpers import save_conversation, format_error_response, sanitize_input, get_timestamp
-import uuid
-from flask import session
 
+# Import blueprints
+from routes.investment_routes import investment_bp
 
 # Configure logging
 logging.basicConfig(
@@ -24,25 +25,40 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+# Register blueprints
+app.register_blueprint(investment_bp)
+
 Config.setup_directories()
 
 with app.app_context():
     initialize_modules()
 
-app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24))
-
-
 @app.route('/')
 def index():
+    """Render the main application page."""
     return render_template('index.html')
 
 @app.route('/assistant')
 def assistant():
-    return render_template('assistant.html')
+    """Render the assistant page."""
+    return render_template('assistant.html')    
 
 @app.route('/about')
 def about():
+    """Render the about page."""
     return render_template('about.html')
+
+@app.route('/investment')
+def investment():
+    """Direct route to investment page - redirects to the blueprint route."""
+    logger.info("Investment route accessed directly from app.py")
+    return redirect(url_for('investment.index'))
+
+@app.route('/investment/<symbol>')
+def investment_company(symbol):
+    """Direct route to company details - redirects to the blueprint route."""
+    logger.info(f"Company details accessed directly from app.py: {symbol}")
+    return redirect(url_for('investment.company_details', symbol=symbol))
 
 @app.route('/transcribe', methods=['POST'])
 def transcribe_audio():
@@ -71,38 +87,10 @@ def transcribe_audio():
         logger.error(f"Error in transcription: {str(e)}")
         return jsonify(format_error_response(str(e))), 500
 
-@app.route('/cancel_response', methods=['POST'])
-def cancel_response():
-    """
-    Cancel any ongoing response generation or speech synthesis.
-    """
-    try:
-        logger.info("Response cancelled by user")
-        
-        # Get session ID for the current user
-        session_id = session.get('session_id')
-        if not session_id:
-            session_id = str(uuid.uuid4())
-            session['session_id'] = session_id
-        
-        # Cancel any active query
-        speech_processor.cancel_active_speech(session_id)
-        
-        return jsonify({
-            "success": True,
-            "message": "Response cancellation processed"
-        })
-    
-    except Exception as e:
-        logger.error(f"Error canceling response: {str(e)}")
-        return jsonify(format_error_response(str(e))), 500     
-
-
 @app.route('/process_query', methods=['POST'])
 def process_query():
     """
     Process a text query and generate a response with audio.
-    Updated to support interruption and session tracking.
     """
     try:
         # Get query text from request
@@ -110,34 +98,23 @@ def process_query():
         if not query:
             return jsonify(format_error_response("No query received")), 400
         
-        # Get or create a session ID
-        session_id = session.get('session_id')
-        if not session_id:
-            session_id = str(uuid.uuid4())
-            session['session_id'] = session_id
-        
         sanitized_query = sanitize_input(query)
         
-        # Process the query
         response = query_processor.process_query(sanitized_query)
         
-        # Generate speech with session ID for tracking
-        audio_data = speech_processor.text_to_speech_data(response, session_id)
+        audio_data = speech_processor.text_to_speech_data(response)
         
-        # Save conversation
         save_conversation(sanitized_query, response)
         
         return jsonify({
             "success": True,
             "text": response,
-            "audio_data": audio_data,
-            "session_id": session_id
+            "audio_data": audio_data
         })
     
     except Exception as e:
         logger.error(f"Error processing query: {str(e)}")
         return jsonify(format_error_response(str(e))), 500
-
 
 @app.route('/categories', methods=['GET'])
 def get_categories():

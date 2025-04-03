@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}{{ symbol }} - Company Details - DataMonk{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/investment.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/company_details.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="company-details-container">
+    <div class="breadcrumb">
+        <a href="{{ url_for('investment.index') }}">Investment</a> &gt; <span id="company-name-breadcrumb">{{ symbol }}</span>
+    </div>
+
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="spinner"></div>
+        <p>Loading company data...</p>
+    </div>
+
+    <div class="company-header" id="company-header">
+        <div class="company-title">
+            <h1 id="company-name">Loading...</h1>
+            <div class="company-code" id="company-code">{{ symbol }}</div>
+        </div>
+        <div class="current-price-container">
+            <div class="current-price" id="current-price"></div>
+            <div class="price-change" id="price-change"></div>
+        </div>
+    </div>
+
+    <div class="company-details-grid">
+        <div class="price-chart-section">
+            <div class="section-card">
+                <h2>Price History</h2>
+                <div class="chart-controls">
+                    <button class="chart-period-btn active" data-period="1M">1M</button>
+                    <button class="chart-period-btn" data-period="3M">3M</button>
+                    <button class="chart-period-btn" data-period="6M">6M</button>
+                    <button class="chart-period-btn" data-period="1Y">1Y</button>
+                    <button class="chart-period-btn" data-period="ALL">ALL</button>
+                </div>
+                <div class="chart-container">
+                    <canvas id="price-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="trading-info-section">
+            <div class="section-card">
+                <h2>Trading Information</h2>
+                <div class="info-grid" id="trading-info">
+                    <div class="info-item">
+                        <div class="info-label">Open</div>
+                        <div class="info-value" id="open-price"></div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">High</div>
+                        <div class="info-value" id="high-price"></div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Low</div>
+                        <div class="info-value" id="low-price"></div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Close</div>
+                        <div class="info-value" id="close-price"></div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Volume</div>
+                        <div class="info-value" id="volume"></div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">52W High</div>
+                        <div class="info-value" id="52w-high"></div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">52W Low</div>
+                        <div class="info-value" id="52w-low"></div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Market Cap</div>
+                        <div class="info-value" id="market-cap"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="company-info-section">
+            <div class="section-card">
+                <h2>Company Information</h2>
+                <div class="info-grid" id="company-info">
+                    <div class="info-item">
+                        <div class="info-label">Industry</div>
+                        <div class="info-value" id="industry"></div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Index</div>
+                        <div class="info-value" id="index"></div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Face Value</div>
+                        <div class="info-value" id="face-value"></div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Listing Date</div>
+                        <div class="info-value" id="listing-date"></div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">P/E Ratio</div>
+                        <div class="info-value" id="pe-ratio"></div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">EPS</div>
+                        <div class="info-value" id="eps"></div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Dividend Yield</div>
+                        <div class="info-value" id="dividend-yield"></div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Book Value</div>
+                        <div class="info-value" id="book-value"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="order-book-section">
+            <div class="section-card">
+                <h2>Order Book</h2>
+                <div class="order-book-tabs">
+                    <button class="order-book-tab active" data-tab="buy">Buy Orders</button>
+                    <button class="order-book-tab" data-tab="sell">Sell Orders</button>
+                </div>
+                <div class="order-book-content">
+                    <table id="order-book-table">
+                        <thead>
+                            <tr>
+                                <th>Price (₹)</th>
+                                <th>Quantity</th>
+                                <th>Orders</th>
+                            </tr>
+                        </thead>
+                        <tbody id="order-book-body">
+                            <tr>
+                                <td colspan="3" class="text-center">Loading data...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="announcements-section">
+            <div class="section-card">
+                <h2>Announcements</h2>
+                <div class="announcements-list" id="announcements-list">
+                    <div class="loading">Loading announcements...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ai-prediction-section">
+            <div class="section-card">
+                <h2>AI Investment Analysis</h2>
+                <div class="ai-prediction-content">
+                    <div class="ai-prediction-placeholder">
+                        <i class="fas fa-robot"></i>
+                        <h3>AI Analysis Coming Soon</h3>
+                        <p>Our AI-powered investment recommendation system is currently under development.</p>
+                        <p>Soon, you'll be able to get personalized investment recommendations based on historical data analysis and market trends.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Pass the symbol to JavaScript
+    const COMPANY_SYMBOL = "{{ symbol }}";
+</script>
+<script src="{{ url_for('static', filename='js/company_details.js') }}"></script>
+{% endblock %}

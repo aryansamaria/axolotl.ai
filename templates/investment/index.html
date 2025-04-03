@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Investments - DataMonk{% endblock %}
+
+{% block additional_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/investment.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="investment-container">
+    <div class="header-section">
+        <h1>Investment Dashboard</h1>
+        <p>Research and analyze companies to make informed investment decisions</p>
+        
+        <div class="search-container">
+            <form id="search-form">
+                <div class="search-box">
+                    <input type="text" id="company-search" placeholder="Search for companies by name or symbol...">
+                    <button type="submit">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </form>
+            <div id="search-results" class="search-results"></div>
+        </div>
+    </div>
+
+    <div class="market-overview">
+        <h2>Market Overview</h2>
+        <div class="market-stats">
+            <div class="stat-card">
+                <h3>Nifty 50</h3>
+                <div class="stat-value" id="nifty-value">Loading...</div>
+                <div class="stat-change" id="nifty-change"></div>
+            </div>
+            <div class="stat-card">
+                <h3>Sensex</h3>
+                <div class="stat-value" id="sensex-value">Loading...</div>
+                <div class="stat-change" id="sensex-change"></div>
+            </div>
+            <div class="stat-card">
+                <h3>Market Cap</h3>
+                <div class="stat-value" id="market-cap">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="market-movers-container">
+        <div class="section-header">
+            <h2>Market Movers</h2>
+            <div class="tabs">
+                <button class="tab-btn active" data-category="gainers">Top Gainers</button>
+                <button class="tab-btn" data-category="losers">Top Losers</button>
+                <button class="tab-btn" data-category="active">Most Active</button>
+            </div>
+        </div>
+        
+        <div class="market-movers-content">
+            <div class="market-movers-table">
+                <table id="market-movers-table">
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Company</th>
+                            <th>LTP (₹)</th>
+                            <th>Change (%)</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="movers-body">
+                        <tr>
+                            <td colspan="5" class="text-center">Loading data...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="recent-searches">
+        <h2>Recent Searches</h2>
+        <div id="recent-companies" class="company-tiles">
+            <!-- Recent searches will be populated here -->
+            <div class="empty-state">No recent searches</div>
+        </div>
+    </div>
+
+    <div class="investment-resources">
+        <h2>Investment Resources</h2>
+        <div class="resources-grid">
+            <div class="resource-card">
+                <i class="fas fa-book"></i>
+                <h3>Learning Center</h3>
+                <p>Educational resources for beginners to advanced investors</p>
+                <a href="#" class="btn-link">Learn More</a>
+            </div>
+            <div class="resource-card">
+                <i class="fas fa-chart-line"></i>
+                <h3>Market Analysis</h3>
+                <p>Expert insights and market analysis</p>
+                <a href="#" class="btn-link">View Analysis</a>
+            </div>
+            <div class="resource-card">
+                <i class="fas fa-calculator"></i>
+                <h3>Investment Tools</h3>
+                <p>Calculators and tools for investment planning</p>
+                <a href="#" class="btn-link">Access Tools</a>
+            </div>
+            <div class="resource-card">
+                <i class="fas fa-newspaper"></i>
+                <h3>Latest News</h3>
+                <p>Stay updated with the latest market news</p>
+                <a href="#" class="btn-link">Read News</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='js/investment.js') }}"></script>
+{% endblock %}
